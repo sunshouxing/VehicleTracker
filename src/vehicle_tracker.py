@@ -1,41 +1,19 @@
 # -*- coding: utf-8 -*-
 
+import sys
 import argparse
+import logging
 import glob
-import numpy as np
+import cv2
 from os.path import basename
 from time import strptime, mktime
 
-import cv2
+from video import Video, VideoProcessor
 
-# pre-defined colors
-COLOR_WHITE = (0, 0, 0)
-COLOR_BLACK = (255, 255, 255)
-COLOR_RED = (0, 0, 255)
-COLOR_GREEN = (0, 200, 0)
-COLOR_YELLOW = (0, 255, 255)
+logging.basicConfig(level=logging.DEBUG)
+log = logging.getLogger('vehicle_tracker')
 
 
-# special pixel points of road monitoring area selected to do perspective transform
-reference_points = np.array([
-    [
-        [[696, 0], [840, 8], [974, 16], [1100, 26]],
-        [[692, 54], [884, 68], [1052, 80], [1208, 92]],
-        [[690, 124], [928, 140], [1134, 154], [1322, 174]],
-        [[688, 344], [1068, 360], [1372, 376], [1606, 388]],
-        [[700, 756], [1286, 736], [1688, 722], [1920, 720]],
-    ],
-    [
-        [[476, 189], [604, 184], [724, 179], [839, 176]],
-        [[478, 230], [631, 222], [778, 219], [918, 214]],
-        [[484, 307], [698, 299], [890, 293], [1061, 287]],
-        [[496, 427], [777, 410], [1022, 393], [1232, 381]],
-        [[569, 903], [1094, 798], [1454, 725], [1701, 676]],
-    ],
-], dtype=np.uint16)
-
-
-target_shapes = [(70, 120), (70, 180)]
 
 
 class Vehicle(object):
@@ -85,8 +63,22 @@ class VehicleTracker(object):
     by process video frames with opencv, and keep track of the vehicles.
     """
 
-    def __init__(self):
-        self.vehicles = []
+    def __init__(self, videos, start_time, direction, interval, debug):
+        self.__videos = [Video(source) for source in videos]
+        self.__start_time = start_time
+
+        self.__video_processor = VideoProcessor(direction, interval, debug)
+        self.__vehicles = []
+
+    def run(self):
+        start_time, time_offset = (self.__start_time, 0)
+        for video in self.__videos:
+            start_time += time_offset
+
+            for frame_num, candidates in self.__video_processor.analysis(video):
+                self.detect(candidates, start_time + frame_num/video.fps)
+
+            time_offset = video.duration
 
     def detect(self, contours, time):
         for contour in contours:
@@ -109,11 +101,11 @@ class VehicleTracker(object):
                 # estimate further if a new vehicle coming
                 if self.is_new_vehicle(center):
                     lane = center[0] / 70 + 1
-                    self.vehicles.append(Vehicle(time, lane, contour_area, center))
+                    self.__vehicles.append(Vehicle(time, lane, contour_area, center))
 
-        for vehicle in self.vehicles[:]:
+        for vehicle in self.__vehicles[:]:
             if time - vehicle.last_update > 0.5:
-                self.vehicles.remove(vehicle)
+                self.__vehicles.remove(vehicle)
                 if len(vehicle.trails) >= 8 and vehicle.trails[-1][1] >= 500:
                     print vehicle
 
@@ -138,7 +130,7 @@ class VehicleTracker(object):
         """
 
         x, y = coordinate
-        for vehicle in self.vehicles:
+        for vehicle in self.__vehicles:
             if (x / 70 + 1 == vehicle.lane) and (0 <= y - vehicle.trails[-1][1] <= 150):
                 return vehicle
 
@@ -149,167 +141,73 @@ class VehicleTracker(object):
         return coordinate[1] <= 50
 
 
-class VideoCapture(object):
-    """
-    this class is used to replay captured video, and process every two frame to
-    detect and track vehicles.
-    """
+def video_start_time(video_source):
+    try:
+        start_time = mktime(strptime(basename(video_source)[:12], '%Y%m%d%H%M'))
+    except ValueError:
+        return None
+    else:
+        return start_time
 
-    def __init__(self, source, start_time, direction):
-        self.capture = cv2.VideoCapture(source)
-        self.start_time = start_time
-        self.direction = direction
 
-        # acquire video general info
-        self.fps = self.capture.get(cv2.cv.CV_CAP_PROP_FPS)
-        self.frame_count = int(self.capture.get(cv2.cv.CV_CAP_PROP_FRAME_COUNT))
-        self.frame_width = int(self.capture.get(cv2.cv.CV_CAP_PROP_FRAME_WIDTH))
-        self.frame_height = int(self.capture.get(cv2.cv.CV_CAP_PROP_FRAME_HEIGHT))
+def setup_parser():
+    parser = argparse.ArgumentParser(
+        description=(
+            'This is a traffic monitoring system to detect and track \
+            vehicles by opencv.'),
+        version='1.0')
+    parser.add_argument(
+        'video_source',
+        action='store',
+        help='the traffic video source, e.g. 20161115093000_20161115100000_P000.mp4')
+    parser.add_argument(
+        'direction',
+        action='store',
+        choices=('upward', 'downward'),
+        metavar='direction',
+        help='traffic direction: upward/downward')
+    parser.add_argument(
+        '-i', '--interval',
+        action='store',
+        type=int,
+        default=1,
+        metavar='n',
+        help='process every n frames of video to speed up analysis')
+    parser.add_argument(
+        '-d', '--debug',
+        action='store_true',
+        dest='debug',
+        default=False,
+        help='show intermediate result of video processing if debug on',
+    )
 
-        # add frames which wanna to display in this map
-        self.frames_to_display = {}
-
-        # create objects for frame processing
-        self.subtractor = cv2.BackgroundSubtractorMOG2(500, 300, False)
-        self.kernel = np.ones((5, 5), np.uint8)
-        self.trans_matrix = self.generate_trans_matrix()
-
-        # init vehicle tracker
-        self.vehicle_tracker = VehicleTracker()
-
-    def __del__(self):
-        self.capture.release()
-        cv2.destroyAllWindows()
-
-    def replay(self):
-        frame_num = 0
-
-        while self.capture.isOpened():
-            # read and process frames one by one
-            result, frame = self.capture.read()
-
-            if result:
-                current_time = self.start_time + frame_num/25.0
-                frame_num += 1
-
-                # to improve performance, we only analysis every two frames instead of every frame
-                if (frame_num % 2) == 0:
-                    self.process(frame, current_time)
-                    self.display()
-            else:
-                # failed to acquire the frame, then break the while loop
-                break
-
-            # video play control
-            # key = cv2.waitKey(10) & 0xFF
-            # if key == ord('q'):
-            #     break
-            # elif key == ord(' '):
-            #     cv2.waitKey()
-            # elif key == ord('s'):
-            #     cv2.imwrite('background.jpg', frame)
-            # else:
-            #     pass
-
-        return self.frame_count/self.fps
-
-    def process(self, frame, time):
-        # transform the frame to make analysis much easier
-        transformed = self.prepare(frame)
-
-        # background segmentation
-        mask = self.bg_segment(transformed)
-
-        contours, _ = cv2.findContours(mask, cv2.cv.CV_RETR_EXTERNAL, cv2.cv.CV_CHAIN_APPROX_NONE)
-        contours = [cv2.convexHull(c) for c in contours]
-        # cv2.drawContours(self.frames_to_display['gray'], contours, -1, COLOR_RED, 2)
-
-        self.vehicle_tracker.detect(contours, time)
-
-    def prepare(self, frame):
-        # resize the frame
-        # frame = cv2.resize(frame, (self.frame_width/2, self.frame_height/2))
-
-        # convert frame to gray one
-        frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-
-        # gaussian blurring to smooth our images
-        # frame = cv2.GaussianBlur(frame, (11, 11), 0)
-
-        # perspective transform
-        frame = self.perspective(frame)
-        # self.frames_to_display['gray'] = frame
-
-        return frame
-
-    def bg_segment(self, frame):
-        mask = self.subtractor.apply(frame)
-
-        # morphology operations
-        morphology = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, np.ones((15, 15), dtype=np.uint8))
-
-        return morphology
-
-    def perspective(self, frame):
-        """
-        perspective transform to given frame
-        """
-        result = np.empty((600, 210), np.uint8)
-
-        x, y = 0, 0
-        for i in range(0, 12):
-            shape = target_shapes[(i % 6 / 3 + self.direction) % 2]
-            width, height = shape
-
-            x = i % 3 * width
-            target = result[y:(y + height), x:(x + width)]
-            cv2.warpPerspective(frame, self.trans_matrix[i], shape, target)
-            y += (i % 3 / 2) * height
-
-        return result
-
-    def generate_trans_matrix(self):
-        matrix = np.empty((12, 3, 3), dtype=np.float64)
-
-        for i in range(0, 12):
-            x, y = (i / 3, i % 3)
-            # select source reference points by traffic direction
-            src_points = reference_points[self.direction][x:x + 2, y:y + 2].reshape((1, 4, 2))[0]
-            # generate destination points according to traffic direction
-            width, height = target_shapes[(i % 6 / 3 + self.direction) % 2]
-            dst_points = np.array([[0, 0], [width, 0], [0, height], [width, height]])
-
-            matrix[i] = cv2.getPerspectiveTransform(
-                src_points.astype(np.float32), dst_points.astype(np.float32))
-
-        return matrix
-
-    def display(self):
-        for window_name, frame in self.frames_to_display.items():
-            cv2.imshow(window_name, frame)
+    return parser
 
 
 def main():
-    parser = argparse.ArgumentParser(
-        description='This is a traffic monitoring system to detect and track vehicle by opencv',
-    )
-    parser.add_argument('-s', '--video-source', action='store', dest='video_source',
-                        help='the traffic video source')
-    parser.add_argument('-d', '--direction', action='store', dest='direction', type=int, default=0,
-                        help='traffic direction: 0/1')
-    arguments = parser.parse_args()
+    # setup argument parser then parse arguments
+    parser = setup_parser()
+    args = parser.parse_args()
 
-    video_source = arguments.video_source
-    start_time = mktime(strptime(basename(video_source)[:12], '%Y%m%d%H%M'))
+    log.debug(args)
 
-    video_sources = glob.glob(video_source.replace('.', '*.'))
+    # try to parse the video's start time from video file name,
+    # and log the error message and exit if failed.
+    start_time = video_start_time(args.video_source)
+    if start_time is None:
+        log.error('illegal video source file name: video source file\'s name '
+                  'should be like 20161115093000_20161115100000_P000.mp4')
+        sys.exit(-1)
+
+    # find all videos of given video source
+    video_sources = glob.glob(args.video_source.replace('.', '*.'))
     video_sources = video_sources[-1:] + video_sources[:-1]
 
-    for video_source in video_sources:
-        # initialize video capture and start it
-        capture = VideoCapture(video_source, start_time, arguments.direction)
-        time_cost = capture.replay()
-        start_time += time_cost
+    # init vehicle tracker and run it
+    vehicle_tracker = VehicleTracker(
+        video_sources, start_time, args.direction, args.interval, args.debug)
+    vehicle_tracker.run()
+
 
 if __name__ == '__main__':
     main()

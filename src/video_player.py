@@ -2,6 +2,7 @@
 __author__ = 'SUN Shouwang'
 
 import cv2
+import sys
 import time
 import numpy as np
 
@@ -252,6 +253,7 @@ def play_callback(video, overlay_lines, capture_images):
 
 
 if __name__ == '__main__':
-    video = Video('video/20161112080000_20161112083000_P000(2).mp4')
+    video_source = sys.argv[1]
+    video = Video(video_source)
     video_player = VideoPlayer(video)
     video_player.play()
