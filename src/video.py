@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 
+import os
 import cv2
 import numpy as np
 
@@ -16,10 +17,21 @@ class Video(object):
 
     def __init__(self, source):
         self.__video = cv2.VideoCapture(source)
+        self.__name = os.path.basename(source)
+        self.__serial_num = int(self.__name[35:-5] or '0')
         self.__frame_num = 0
 
     def __del__(self):
         self.__video.release()
+
+    def __str__(self):
+        return ("name: {}, fps: {}, frame width: {}, frame height: {}, "
+                "frame count: {}, duration: {}.").format(
+            self.__name, self.fps, self.frame_width, self.frame_height,
+            self.frame_count, self.duration)
+
+    def __cmp__(self, other):
+        return self.__serial_num - other.__serial_num
 
     def read(self):
         """
@@ -36,7 +48,7 @@ class Video(object):
 
     @property
     def fps(self):
-        return int(self.__get(cv2.cv.CV_CAP_PROP_FPS))
+        return self.__get(cv2.cv.CV_CAP_PROP_FPS)
 
     @property
     def frame_width(self):
@@ -95,15 +107,18 @@ class VideoProcessor(object):
         self.__debug = debug
 
         # add frames which wanna to display in this cache
-        # self.__display_cache = weakref.WeakValueDictionary()
         self.__display_cache = {}
 
         # create objects for frame processing
-        self.subtractor = cv2.BackgroundSubtractorMOG2(500, 300, False)
+        # self.subtractor = cv2.BackgroundSubtractorMOG2()
+        self.subtractor = cv2.BackgroundSubtractorMOG()
         self.kernel = np.ones((5, 5), np.uint8)
         self.trans_matrix = self.generate_trans_matrix()
 
     def __del__(self):
+        for key in self.__display_cache.keys():
+            frame = self.__display_cache.pop(key)
+            del frame
         cv2.destroyAllWindows()
 
     def analysis(self, video):
@@ -115,9 +130,13 @@ class VideoProcessor(object):
                 # process every n frames instead of every frame to speed up analysis
                 if frame_num % self.__interval:
                     candidates = self.process(frame)
-                    yield (frame_num, candidates)
+                    vehicles = yield (frame_num, candidates)
 
                     if self.__debug:
+                        if vehicles:
+                            for v in vehicles:
+                                for coordinates in v.trails:
+                                    cv2.circle(self.__display_cache['gray'], coordinates, 3, COLOR_RED)
                         self.display()
             else:
                 # failed to acquire the frame, then break the while loop
@@ -168,7 +187,7 @@ class VideoProcessor(object):
         return frame
 
     def bg_segment(self, frame):
-        mask = self.subtractor.apply(frame)
+        mask = self.subtractor.apply(frame, learningRate=1.0/100)
 
         # morphology operations
         morphology = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, np.ones((15, 15), dtype=np.uint8))
