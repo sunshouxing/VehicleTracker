@@ -87,13 +87,13 @@ class VideoPlayer(object):
     def play_control(self):
         key = cv2.waitKey(1000 / self.fps) & 0xFF
         # 超时
-        if key == -1:
+        if key == 255:
             pass
         # Esc键
         elif key == 27:
             self.exit = True
         # 空格键
-        elif key == ord(' '):
+        elif key == 32:
             print u'播放暂停，按任意键继续！'
             cv2.waitKey()
         # S或s键
@@ -114,12 +114,12 @@ class VideoPlayer(object):
             print self.CTRL_KEYS_PROMPT
 
     def play(self, video):
-        # return directly when the exit flag set True
-        if self.exit: return
-
         self.fps = video.fps
 
         while video.is_opened:
+            # return directly when the exit flag set True
+            if self.exit: return
+
             frame_num, frame = video.read()
             if frame_num != -1:
                 self.current_frame = frame
@@ -269,8 +269,6 @@ def main():
 
     video = Video('/home/arthur/Workspace/VehicleTracker/app/video/20161114083000_20161114090000_P000.mp4')
     video_player.play(video)
-
-    print len(OverlayLine.get_instances())
 
 
 if __name__ == '__main__':
