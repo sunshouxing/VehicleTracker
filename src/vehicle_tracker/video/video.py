@@ -33,8 +33,7 @@ class Video(object):
         self.__video.release()
 
     def __str__(self):
-        return ('Video general info:\n'
-                '  o Name: {video.name};\n'
+        return ('Video {video.name} general info:\n'
                 '  o Fps: {video.fps};\n'
                 '  o Frame width: {video.frame_width};\n'
                 '  o Frame height: {video.frame_height};\n'
@@ -124,6 +123,10 @@ class VideoCluster(object):
         while self.__videos:
             video = self.__videos.pop()
             del video
+
+    def __str__(self):
+        video_info = [str(v) for v in self.__videos]
+        return 'Video cluster includes:\n{}'.format('\n'.join(video_info))
 
     def read(self):
         for video in self.__videos:
