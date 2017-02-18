@@ -51,19 +51,16 @@ def setup_parser():
 
 
 def main():
-    # # setup argument parser then parse arguments
-    # parser = setup_parser()
-    # args = parser.parse_args()
-    #
-    # traffic_video = video.VideoCluster(args.video_source)
-    #
-    # # init vehicle tracker and run it
-    # vehicle_tracker = tracker.VehicleTracker(
-    #     traffic_video, args.direction, args.interval, args.debug)
-    # vehicle_tracker.run()
+    # setup argument parser then parse arguments
+    parser = setup_parser()
+    args = parser.parse_args()
 
-    traffic_video = video.VideoCluster('/home/arthur/Workspace/VehicleTracker/video/20161214083000_20161214090000_P000.mp4')
-    print traffic_video
+    traffic_video = video.VideoCluster(args.video_source)
+
+    # init vehicle tracker and run it
+    vehicle_tracker = tracker.VehicleTracker(
+        traffic_video, args.direction, args.interval, args.debug)
+    vehicle_tracker.run()
 
 
 if __name__ == '__main__':
