@@ -48,7 +48,7 @@ def has_method(*methods):
     return decorator
 
 
-def draw_line(image, start_point, end_point):
+def draw_line(image, start_point, end_point, color):
     """
     Draw a line with emphasized endpoint on given image.
     """
@@ -57,21 +57,21 @@ def draw_line(image, start_point, end_point):
         img=image,
         center=start_point,
         radius=5,
-        color=(0, 0, 255),
+        color=color,
         thickness=-1,
     )
     cv2.circle(
         img=image,
         center=end_point,
         radius=5,
-        color=(0, 0, 255),
+        color=color,
         thickness=-1,
     )
     cv2.line(
         img=image,
         pt1=start_point,
         pt2=end_point,
-        color=(0, 0, 255),
+        color=color,
         thickness=1,
     )
 

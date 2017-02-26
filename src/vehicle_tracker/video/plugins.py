@@ -86,9 +86,9 @@ class DisplayPlugin(VideoPlugin):
 
 class CaptureImage(object):
 
-    def __init__(self, shape, name_template):
+    def __init__(self, shape, image_queue):
         self.rows, self.columns = shape
-        self.name_template = name_template
+        self.image_queue = image_queue
 
         self.image = np.empty(shape, dtype=np.uint8)
         self.index = 0
@@ -113,15 +113,12 @@ class CaptureImage(object):
         if self.index == 0: return
 
         image = self.image[:self.index, :]
-        # stretched_image = np.repeat(image, 3, 0)
-
-        file_name = self.name_template.format(int(self.timestamp))
-        cv2.imwrite(file_name, image)
+        self.image_queue.put((self.timestamp, image.copy()))
 
 
 class OverlayCapture(object):
 
-    def __init__(self, name, start_point, end_point):
+    def __init__(self, image_queue, name, start_point, end_point, size):
         self.name = name
 
         # init slicer
@@ -132,9 +129,8 @@ class OverlayCapture(object):
         self.slicer = np.s_[y1:y2 + 1, x1:x2 + 1]
 
         # init capture image
-        image_rows = (y2 - y1 + 1) * 1500
-        image_columns = x2 - x1 + 1
-        self.capture_image = CaptureImage((image_rows, image_columns), '{}-{{}}.jpg'.format(self.name))
+        image_shape = (y2-y1+1)*size, (x2-x1+1)
+        self.capture_image = CaptureImage(image_shape, image_queue)
 
         # init subtractor
         self.subtractor = cv2.BackgroundSubtractorMOG()
@@ -227,20 +223,16 @@ class Transformer(object):
 
 class OverlayCapturePlugin(VideoPlugin):
 
-    def __init__(self):
+    def __init__(self, direction, overlays):
         super(OverlayCapturePlugin, self).__init__()
 
-        # TODO (Arthur) parameterize the captures creation
-        self.overlays = [
-            OverlayCapture('line1', (0, 839), (419, 839)),
-            OverlayCapture('line2', (0, 1199), (419, 1199)),
-        ]
+        self.overlays = overlays
 
         self.preprocess_routines = [
             # convert frame to gray one
             functools.partial(cv2.cvtColor, code=cv2.COLOR_BGR2GRAY),
             # perspective transform
-            Transformer('downward', False).perspective,
+            Transformer(direction, False).perspective,
             # gaussian blur
             functools.partial(cv2.GaussianBlur, ksize=(21, 21), sigmaX=0),
         ]

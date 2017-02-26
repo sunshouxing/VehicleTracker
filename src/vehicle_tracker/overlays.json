@@ -1,0 +1,29 @@
+{
+    "distance": 9, 
+    "overlays": [
+        {
+            "end_point": [
+                419, 
+                840
+            ], 
+            "start_point": [
+                0, 
+                840
+            ], 
+            "name": "line1", 
+            "size": 1500
+        }, 
+        {
+            "end_point": [
+                419, 
+                1199
+            ], 
+            "start_point": [
+                0, 
+                1199
+            ], 
+            "name": "line2", 
+            "size": 1500
+        }
+    ]
+}
