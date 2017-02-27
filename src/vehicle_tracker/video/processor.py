@@ -31,4 +31,6 @@ class VideoProcessor(object):
         for plugin in self.plugins:
             plugin.finalize()
 
+        logging.info('Meets the end of video {}'.format(video.name))
+
 # EOF

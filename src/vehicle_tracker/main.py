@@ -6,7 +6,10 @@ import logging
 import tracker
 import video
 
-logging.basicConfig(level=logging.DEBUG)
+logging.basicConfig(
+    format='%(asctime)-15s %(message)s',
+    level=logging.DEBUG,
+)
 log = logging.getLogger('vehicle_tracker')
 
 
@@ -32,6 +35,10 @@ def setup_parser():
         choices=('upward', 'downward'),
         metavar='direction',
         help='traffic direction: upward/downward')
+    parser.add_argument(
+        'output',
+        action='store',
+        help='the analysis result\'s output file')
     parser.add_argument(
         '-i', '--interval',
         action='store',
@@ -59,7 +66,7 @@ def main():
 
     # init vehicle tracker and run it
     vehicle_tracker = tracker.VehicleTracker(
-        traffic_video, args.direction, args.interval, args.debug)
+        traffic_video, args.direction, args.output, args.interval, args.debug)
     vehicle_tracker.run()
 
 

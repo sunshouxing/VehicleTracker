@@ -19,13 +19,18 @@ class ImageAnalyzer(mp.Process):
     acquire vehicle attributes.
     """
 
-    def __init__(self, name, queues, repeats, fps, distance):
+    def __init__(self, name, queues, repeats, fps, distance, output):
         super(ImageAnalyzer, self).__init__(name=name)
 
         self.queues = queues
         self.repeats = repeats
         self.distance = distance
         self.fps = fps
+
+        self.output = open(output, 'a+')
+
+    def __del__(self):
+        self.output.close()
 
     def run(self):
         while True:
@@ -49,7 +54,8 @@ class ImageAnalyzer(mp.Process):
                     length = self.distance*height2/pixel_delta
                     time = int(start_time + (y2 / self.fps / self.repeats))
 
-                    print lane, time, speed, length
+                    self.output.write('{} {} {} {}\n'.format(lane, time, speed, length))
+                self.output.flush()
             finally:
                 for queue in self.queues:
                     queue.task_done()
@@ -144,7 +150,7 @@ class VehicleTracker(object):
     traffic surveillance video.
     """
 
-    def __init__(self, traffic_video, direction, interval, debug):
+    def __init__(self, traffic_video, direction, output, interval, debug):
         self.video = traffic_video
 
         # load overlays' configuration
@@ -164,12 +170,14 @@ class VehicleTracker(object):
         ])
 
         self.image_analyzer = ImageAnalyzer(
-            'ImageAnalyzer', self.job_queues, 3, self.video.fps, overlay_conf['distance'])
+            'ImageAnalyzer', self.job_queues, 3, self.video.fps, overlay_conf['distance'], output)
+        self.image_analyzer.daemon = True
 
     def run(self):
         self.image_analyzer.start()
         self.video_processor.process(self.video)
 
-        self.image_analyzer.join()
+        for job_queue in self.job_queues:
+            job_queue.join()
 
 # EOF
