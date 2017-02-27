@@ -4,6 +4,7 @@ import cv2
 import json
 import logging
 import multiprocessing as mp
+import os
 
 import numpy as np
 
@@ -146,7 +147,8 @@ class VehicleTracker(object):
         self.video = traffic_video
 
         # load overlays' configuration
-        with open('overlays.json', 'r') as source:
+        conf_file = os.path.join(os.path.dirname(__file__), 'overlays.json')
+        with open(conf_file, 'r') as source:
             overlay_conf = json.load(source)
 
         # video processor => [job queues] => image analyzer
