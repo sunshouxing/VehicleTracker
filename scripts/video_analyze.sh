@@ -13,5 +13,5 @@ direction=$2
 for video in ${video_home}/*P000.mp4
 do
     log_file="${LOG_DIR}/$(basename ${video} | cut -c1-14)-${direction}.log"
-    python ${SRC_DIR}/main.py ${video} ${direction} -i 2 -d >> ${log_file}
+    python ${SRC_DIR}/main.py ${video} ${direction} ${log_file} -i 2 -d
 done
