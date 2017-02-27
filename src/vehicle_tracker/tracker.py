@@ -49,7 +49,7 @@ class ImageAnalyzer(mp.Process):
                     length = self.distance*height2/pixel_delta
                     time = int(start_time + (y2 / self.fps / self.repeats))
 
-                    logging.info('{} {} {} {}'.format(lane, time, speed, length))
+                    print lane, time, speed, length
             finally:
                 for queue in self.queues:
                     queue.task_done()
@@ -125,9 +125,10 @@ class ImageAnalyzer(mp.Process):
             matched = filtered[0]
 
             # the speed in range (25, 150)
-            # if 100 > item[1] - matched[1] > 10:
-            #     yield matched, item
-            yield matched, item
+            # speed = (3.6 * self.distance * self.repeats * self.fps) / (y2 - y1)
+            temp = 3.6 * self.distance * self.repeats * self.fps
+            if temp/25 > item[1] - matched[1] > temp/150:
+                yield matched, item
 
 
 class Vehicle(object):
