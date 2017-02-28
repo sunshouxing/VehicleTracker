@@ -91,14 +91,18 @@ class ImageAnalyzer(mp.Process):
         3. convert into a np.array
         """
 
-        def lane_of(rectangle):
-            x, y, width, height = rectangle
-            if x < 0.8 * LANE_WIDTH:
-                return 1
-            elif (x > 1.8 * LANE_WIDTH) and (x + width > 2.8 * LANE_WIDTH):
-                return 3
-            else:
-                return 2
+        def lane_of(x1, x2):
+            lane = 1
+            max_length = 0
+            for l, (y1, y2) in enumerate([(0, 139), (140, 279), (280, 419)]):
+                lower = max(x1, y1)
+                upper = min(x2, y2)
+
+                if (upper - lower) > max_length:
+                    lane = l + 1
+                    max_length = upper - lower
+
+            return lane
 
         customized_type = np.dtype([
             ('x', np.uint16),
@@ -110,7 +114,7 @@ class ImageAnalyzer(mp.Process):
 
         rectangles = filter(lambda a: a[2] > 60 and a[3] > 15, rectangles)
         return np.array(
-            [(i[0], i[1], i[2], i[3], lane_of(i)) for i in rectangles],
+            [(i[0], i[1], i[2], i[3], lane_of(i[0], i[0]+i[2])) for i in rectangles],
             dtype=customized_type
         )
 
