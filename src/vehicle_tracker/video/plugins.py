@@ -177,11 +177,6 @@ class Transformer(object):
 
         self.__trans_matrix = self.__generate_trans_matrix()
 
-        # create objects for frame processing
-        # self.subtractor = cv2.BackgroundSubtractorMOG2()
-        self.subtractor = cv2.BackgroundSubtractorMOG()
-        self.kernel = np.ones((5, 5), np.uint8)
-
     def perspective(self, frame):
         """
         perspective transform to given frame
