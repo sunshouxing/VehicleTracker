@@ -1,28 +1,16 @@
 {
-    "distance": 9, 
+    "distance": 15,
     "overlays": [
         {
-            "end_point": [
-                419, 
-                840
-            ], 
-            "start_point": [
-                0, 
-                840
-            ], 
-            "name": "line1", 
+            "name": "line1",
+            "start_point": [0, 0],
+            "end_point": [419, 0],
             "size": 1500
         }, 
         {
-            "end_point": [
-                419, 
-                1199
-            ], 
-            "start_point": [
-                0, 
-                1199
-            ], 
-            "name": "line2", 
+            "name": "line2",
+            "start_point": [0, 599],
+            "end_point": [419, 599],
             "size": 1500
         }
     ]
