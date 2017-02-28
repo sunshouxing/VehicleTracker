@@ -13,7 +13,8 @@ class VideoProcessor(object):
     processor will take care of other things.
     """
 
-    def __init__(self, plugins):
+    def __init__(self, interval, plugins):
+        self.interval = interval
         self.plugins = plugins
 
     def __del__(self):
@@ -23,10 +24,11 @@ class VideoProcessor(object):
         logging.info('Processing video {},\n{}'.format(video.name, video))
 
         for frame_num, frame in video.read():
-            timestamp = video.start_time + frame_num/video.fps
+            if frame_num % self.interval == 0:
+                timestamp = video.start_time + frame_num/video.fps
 
-            for plugin in self.plugins:
-                if plugin.active: plugin.process(frame, frame_num, timestamp)
+                for plugin in self.plugins:
+                    if plugin.active: plugin.process(frame, frame_num, timestamp)
 
         for plugin in self.plugins:
             plugin.finalize()
