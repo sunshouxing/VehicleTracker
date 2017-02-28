@@ -37,6 +37,8 @@ class ImageAnalyzer(mp.Process):
             jobs = [queue.get() for queue in self.queues]
             times = [job[0] for job in jobs]
             images = [job[1] for job in jobs]
+            # the stat result collection array
+            results = []
 
             try:
                 if len(set(times)) > 1:
@@ -54,7 +56,12 @@ class ImageAnalyzer(mp.Process):
                     length = self.distance*height2/pixel_delta
                     time = int(start_time + (y2 / self.fps / self.repeats))
 
-                    self.output.write('{} {} {} {}\n'.format(lane, time, speed, length))
+                    results.append((lane, time, speed, length))
+
+                # write the results to specified output file
+                self.output.writelines([
+                    '{0[0]} {0[1]} {0[2]} {0[3]}\n'.format(r) for r in results
+                ])
                 self.output.flush()
             finally:
                 for queue in self.queues:
@@ -162,7 +169,7 @@ class VehicleTracker(object):
         overlays_num = len(overlay_conf['overlays'])
         self.job_queues = [mp.JoinableQueue() for _ in range(overlays_num)]
 
-        self.video_processor = video.VideoProcessor(plugins=[
+        self.video_processor = video.VideoProcessor(interval, plugins=[
             video.plugins.OverlayCapturePlugin(direction, [
                 video.plugins.OverlayCapture(queue, **conf)
                 for queue, conf in zip(self.job_queues, overlay_conf['overlays'])
