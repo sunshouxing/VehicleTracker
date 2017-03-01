@@ -19,13 +19,14 @@ class ImageAnalyzer(mp.Process):
     acquire vehicle attributes.
     """
 
-    def __init__(self, name, queues, repeats, fps, distance, output):
+    def __init__(self, name, queues, repeats, fps, distance, output, debug):
         super(ImageAnalyzer, self).__init__(name=name)
 
         self.queues = queues
         self.repeats = repeats
         self.distance = distance
         self.fps = fps
+        self.debug = debug
 
         self.output = open(output, 'a+')
 
@@ -40,11 +41,14 @@ class ImageAnalyzer(mp.Process):
             # the stat result collection array
             results = []
 
+            debug_data1 = []
+            debug_data2 = []
+
             try:
                 if len(set(times)) > 1:
                     logging.error('images with different timestamps, detail: {}'.format(times))
                     break
-                start_time = times[0]
+                start_time = int(times[0])
 
                 rectangle_groups = [self._recognize(image) for image in images]
                 for (x1, y1, width1, height1, lane), \
@@ -57,6 +61,19 @@ class ImageAnalyzer(mp.Process):
                     time = int(start_time + (y2 / self.fps / self.repeats))
 
                     results.append((lane, time, speed, length))
+
+                    if self.debug:
+                        debug_data1.append([int(i) for i in (x1, y1, width1, height1, lane, speed)])
+                        debug_data2.append([int(i) for i in (x2, y2, width2, height2, lane, speed)])
+
+                if self.debug:
+                    # save the capture images for debug
+                    for i, image in enumerate(images):
+                        cv2.imwrite('debug{}-{}.jpg'.format(i + 1, start_time), image)
+
+                    for i, data in enumerate([debug_data1, debug_data2]):
+                        with open('debug{}-{}.json'.format(i + 1, start_time), 'w') as output:
+                            json.dump(data, output)
 
                 # write the results to specified output file
                 self.output.writelines([
@@ -91,18 +108,28 @@ class ImageAnalyzer(mp.Process):
         3. convert into a np.array
         """
 
-        def lane_of(x1, x2):
-            lane = 1
-            max_length = 0
-            for l, (y1, y2) in enumerate([(0, 139), (140, 279), (280, 419)]):
-                lower = max(x1, y1)
-                upper = min(x2, y2)
+        # def lane_of(x1, x2):
+        #     lane = 1
+        #     max_length = 0
+        #     for l, (y1, y2) in enumerate([(0, 139), (140, 279), (280, 419)]):
+        #         lower = max(x1, y1)
+        #         upper = min(x2, y2)
+        #
+        #         if (upper - lower) > max_length:
+        #             lane = l + 1
+        #             max_length = upper - lower
+        #
+        #     return lane
 
-                if (upper - lower) > max_length:
-                    lane = l + 1
-                    max_length = upper - lower
+        def lane_of(rectangle):
+            x, y, width, height = rectangle
 
-            return lane
+            if x < 0.8 * LANE_WIDTH:
+                return 1
+            elif (x > 1.8 * LANE_WIDTH) and (x + width > 2.8 * LANE_WIDTH):
+                return 3
+            else:
+                return 2
 
         customized_type = np.dtype([
             ('x', np.uint16),
@@ -114,7 +141,7 @@ class ImageAnalyzer(mp.Process):
 
         rectangles = filter(lambda a: a[2] > 60 and a[3] > 15, rectangles)
         return np.array(
-            [(i[0], i[1], i[2], i[3], lane_of(i[0], i[0]+i[2])) for i in rectangles],
+            [(i[0], i[1], i[2], i[3], lane_of(i)) for i in rectangles],
             dtype=customized_type
         )
 
@@ -170,9 +197,11 @@ class VehicleTracker(object):
             overlay_conf = json.load(source)
 
         # video processor => [job queues] => image analyzer
+        # job queues are data bridge between video processor and image analyzer
         overlays_num = len(overlay_conf['overlays'])
         self.job_queues = [mp.JoinableQueue() for _ in range(overlays_num)]
 
+        # initialize video processor
         self.video_processor = video.VideoProcessor(interval, plugins=[
             video.plugins.OverlayCapturePlugin(direction, [
                 video.plugins.OverlayCapture(queue, **conf)
@@ -180,8 +209,10 @@ class VehicleTracker(object):
             ]),
         ])
 
+        # initialize image analyzer
+        distance = overlay_conf['distance'][direction]
         self.image_analyzer = ImageAnalyzer(
-            'ImageAnalyzer', self.job_queues, 3, self.video.fps, overlay_conf['distance'], output)
+            'ImageAnalyzer', self.job_queues, 3, self.video.fps, distance, output, debug)
         self.image_analyzer.daemon = True
 
     def run(self):
