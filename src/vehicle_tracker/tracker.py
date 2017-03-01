@@ -197,9 +197,11 @@ class VehicleTracker(object):
             overlay_conf = json.load(source)
 
         # video processor => [job queues] => image analyzer
+        # job queues are data bridge between video processor and image analyzer
         overlays_num = len(overlay_conf['overlays'])
         self.job_queues = [mp.JoinableQueue() for _ in range(overlays_num)]
 
+        # initialize video processor
         self.video_processor = video.VideoProcessor(interval, plugins=[
             video.plugins.OverlayCapturePlugin(direction, [
                 video.plugins.OverlayCapture(queue, **conf)
@@ -207,8 +209,10 @@ class VehicleTracker(object):
             ]),
         ])
 
+        # initialize image analyzer
+        distance = overlay_conf['distance'][direction]
         self.image_analyzer = ImageAnalyzer(
-            'ImageAnalyzer', self.job_queues, 3, self.video.fps, overlay_conf['distance'], output, debug)
+            'ImageAnalyzer', self.job_queues, 3, self.video.fps, distance, output, debug)
         self.image_analyzer.daemon = True
 
     def run(self):
