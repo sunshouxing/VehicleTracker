@@ -12,8 +12,8 @@
         },
         {
             "name": "line2",
-            "start_point": [0, 599],
-            "end_point": [419, 599],
+            "start_point": [0, 359],
+            "end_point": [419, 359],
             "size": 1500
         }
     ]
