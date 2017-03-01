@@ -1,5 +1,10 @@
 This file is a log of any potentially user affecting changes to the app.
 
-2016-03-06 version-0.2.1
-1. add version support and CHANGELOG
+2016-02-28 version-0.2.1
+  1. add version support and CHANGELOG
 
+2016-03-02 version-0.2.2
+  1. add debug mode to output capture images and statistics data;
+  2. implement a debug util to demo statistics result;
+  3. adopt original lane algorithm and new perspective strategy;
+  4. make upward and downward have their own distance in overlay conf.

@@ -225,12 +225,12 @@ def perspective(frame, direction, width, height):
 
     src = [
         np.array([
-            [484, 307], [1061, 287],
+            [496, 427], [1232, 381],
             [569, 903], [1701, 676],
         ], np.float32),
         np.array([
-            [690, 124], [1322, 174],
-            [700, 756], [1920, 720]
+            [688, 344], [1606, 388],
+            [800, 756], [1920, 720]
         ], np.float32),
     ][direction]
 
@@ -254,7 +254,7 @@ class OverlayCapturePlugin(VideoPlugin):
             # convert frame to gray one
             functools.partial(cv2.cvtColor, code=cv2.COLOR_BGR2GRAY),
             # perspective transform
-            functools.partial(perspective, direction=direction, width=420, height=600),
+            functools.partial(perspective, direction=direction, width=420, height=360),
             # gaussian blur
             functools.partial(cv2.GaussianBlur, ksize=(21, 21), sigmaX=0),
         ]
